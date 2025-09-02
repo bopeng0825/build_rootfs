@@ -17,10 +17,6 @@ jobs:
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
-    - name: Import ARM64 base rootfs
-      run: |
-        cat ubuntu-base-20.04.5-base-arm64.tar.gz | docker import - ubuntu-arm64:20.04
-
     - name: Build ARM64 Docker image
       run: |
         docker buildx build --platform linux/arm64 -t my-ubuntu-arm64:20.04 -f Dockerfile.arm64 .
