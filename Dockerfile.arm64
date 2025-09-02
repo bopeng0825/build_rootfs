@@ -1,5 +1,5 @@
 # 基于已经导入的 ARM64 rootfs
-FROM ubuntu-arm64:20.04
+FROM --platform=linux/arm64 ubuntu:20.04
 
 ENV DEBIAN_FRONTEND=noninteractive \
     TZ=Asia/Shanghai \
@@ -30,3 +30,4 @@ RUN sed -i 's/^#DefaultTimeoutStopSec=.*/DefaultTimeoutStopSec=3s/' /etc/systemd
 RUN mkdir -p /etc/init.d /usr/local && \
     echo '#!/bin/bash -e\nif [ ! -e "/usr/local/first_boot_flag" ]; then\n resize2fs /dev/mmcblk0p6\n touch /usr/local/first_boot_flag\nfi' > /etc/init.d/firstboot.sh && \
     chmod +x /etc/init.d/firstboot.sh
+
