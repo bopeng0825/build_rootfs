@@ -1,0 +1,54 @@
+name: RK3326 Ubuntu RootFS Builder
+on:
+  workflow_dispatch:
+
+jobs:
+  build-rootfs:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set Up QEMU for ARM64 Emulation
+        run: |
+          sudo apt update -y
+          sudo apt install -y qemu-user-static binfmt-support
+          sudo docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+          docker run --rm arm64v8/ubuntu:20.04.5 uname -m
+
+      - name: Build Docker Image for RootFS
+        run: |
+          docker build -t rk3326-ubuntu-rootfs:${{ github.event.inputs.image-tag }} .
+          docker images | grep rk3326-ubuntu-rootfs
+
+      - name: Extract RootFS Files from Docker Container
+        run: |
+          mkdir -p ~/rk3568_rootfs_temp
+          docker run -it --rm -v ~/rk3568_rootfs_temp:/output \
+            rk3568-ubuntu-rootfs:${{ github.event.inputs.image-tag }} \
+            /bin/bash -c "rsync -a --exclude=/output --exclude=/proc --exclude=/sys --exclude=/dev --exclude=/tmp / /output/"
+          ls -l ~/rk3568_rootfs_temp/etc ~/rk3568_rootfs_temp/home
+      
+      - name: Package RootFS into EXT4 Image
+        run: |
+          ROOTFS_SIZE=${{ github.event.inputs.rootfs-size-mb }}
+          dd if=/dev/zero of=ubuntu_rootfs.img bs=1M count=$ROOTFS_SIZE
+          mkfs.ext4 -L rootfs ubuntu_rootfs.img
+
+          mkdir -p ~/rootfs_mount
+          sudo mount ubuntu_rootfs.img ~/rootfs_mount
+          sudo cp -rfp ~/rk3568_rootfs_temp/* ~/rootfs_mount/
+          sudo chown -R root:root ~/rootfs_mount/
+          sudo chmod 755 ~/rootfs_mount/
+          sudo umount ~/rootfs_mount
+          e2fsck -p -f ubuntu_rootfs.img
+          resize2fs -M ubuntu_rootfs.img
+
+      - name: Upload RootFS Image as Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rk3568-ubuntu20.04-rootfs-${{ github.event.inputs.image-tag }}
+          path: ubuntu_rootfs.img
+          retention-days: 30  # 镜像保留30天（可调整）
+          if-no-files-found: error  # 无文件时触发错误
+      
