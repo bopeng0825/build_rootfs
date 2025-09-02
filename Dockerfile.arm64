@@ -1,0 +1,32 @@
+# 基于已经导入的 ARM64 rootfs
+FROM ubuntu-arm64:20.04
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    TZ=Asia/Shanghai \
+    LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8
+
+# 更新系统并安装常用工具
+RUN apt-get update && apt-get install -y \
+    sudo vim udev net-tools ethtool udhcpc netplan.io \
+    language-pack-en-base language-pack-zh-han* \
+    iputils-ping openssh-sftp-server ntp usbutils alsa-utils libmtp9 \
+    && rm -rf /var/lib/apt/lists/*
+
+# 添加 ubuntu 用户
+RUN useradd -m -s /bin/bash ubuntu \
+    && echo 'ubuntu:123456' | chpasswd \
+    && echo "ubuntu ALL=(ALL:ALL) ALL" >> /etc/sudoers
+
+# 设置 hostname 和 hosts
+RUN echo "rk3326" > /etc/hostname && \
+    echo "127.0.0.1 localhost" >> /etc/hosts && \
+    echo "127.0.0.1 rk3326" >> /etc/hosts
+
+# 修改 systemd 默认超时时间
+RUN sed -i 's/^#DefaultTimeoutStopSec=.*/DefaultTimeoutStopSec=3s/' /etc/systemd/system.conf
+
+# 添加 firstboot 脚本
+RUN mkdir -p /etc/init.d /usr/local && \
+    echo '#!/bin/bash -e\nif [ ! -e "/usr/local/first_boot_flag" ]; then\n resize2fs /dev/mmcblk0p6\n touch /usr/local/first_boot_flag\nfi' > /etc/init.d/firstboot.sh && \
+    chmod +x /etc/init.d/firstboot.sh
